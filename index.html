@@ -468,11 +468,7 @@ body {
     border: 1px solid var(--border-strong);
 }
 .btn-secondary:hover { background: var(--bg-panel); color: var(--text-primary); }
-.btn-demo {
-    background: var(--ncbi-teal);
-    color: white;
-}
-.btn-demo:hover { background: var(--ncbi-blue-dark); }
+
 .processing-info {
     font-size: 12px;
     color: var(--text-muted);
@@ -863,7 +859,7 @@ footer a { color: rgba(255,255,255,0.85); }
     transition: color 0.2s;
 }
 .modal-close:hover { color: var(--accent-red); }
-#demo-video { width: 100%; border-radius: var(--radius-md); margin-top: 12px; }
+
 /* ── RESPONSIVE ──────────────────────────────────────────── */
 @media (max-width: 768px) {
     .main-wrap { padding: 16px; }
@@ -1498,7 +1494,7 @@ kbd {
                     <button class="btn btn-primary" id="predict-btn" disabled>
                         <i class="fas fa-play"></i> Submit Analysis
                     </button>
-                    <button class="btn btn-demo" id="show-demo-btn"><i class="fas fa-video"></i> Demo</button>
+
                 </div>
                 <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
                     <div class="processing-info">
@@ -1770,16 +1766,7 @@ kbd {
 </main>
 <div class="aa-tooltip-box" id="aa-tooltip"></div>
 <div class="toast-wrap" id="toast-wrap"></div>
-<div id="demo-modal" class="modal-overlay">
-    <div class="modal-box">
-        <button class="modal-close" id="modal-close-btn">&times;</button>
-        <h3 style="color:var(--ncbi-blue-dark);font-size:16px;">EPIC-AMP — Live Demo</h3>
-        <video id="demo-video" controls loop muted playsinline>
-            <source src="demo.mp4" type="video/mp4">
-            Your browser does not support the video tag.
-        </video>
-    </div>
-</div>
+
 <footer>
     <p style="margin-bottom:4px;">© 2025 Bioinformatics and Computational Biology Unit (BCBU) — Zewail City</p>
     <address style="font-style:normal;color:rgba(255,255,255,0.55);font-size:11px;">Ahmed Zewail Street, October Gardens, Giza, Egypt</address>
@@ -1836,10 +1823,6 @@ kbd {
     const emailErrorDiv    = document.getElementById('email-error');
     const emailStatusDiv   = document.getElementById('email-status');
     const emailStatusResult= document.getElementById('email-status-result');
-    const showDemoBtn      = document.getElementById('show-demo-btn');
-    const demoModal        = document.getElementById('demo-modal');
-    const modalCloseBtn    = document.getElementById('modal-close-btn');
-    const demoVideo        = document.getElementById('demo-video');
     const seqValidMsg      = document.getElementById('seq-validation-msg');
     const aaCompBarWrap    = document.getElementById('aa-comp-bar-wrap');
     const aaCompSegments   = document.getElementById('aa-comp-segments');
@@ -2007,9 +1990,6 @@ kbd {
         userEmailInput?.addEventListener('input', updateBtnState);
         clearBtn?.addEventListener('click', clearAll);
         predictBtn?.addEventListener('click', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(runPrediction, 300); });
-        showDemoBtn?.addEventListener('click', () => { demoModal.classList.add('active'); demoVideo?.play(); });
-        modalCloseBtn?.addEventListener('click', closeModal);
-        demoModal?.addEventListener('click', e => { if (e.target === demoModal) closeModal(); });
         clearAll();
         document.addEventListener('mousemove', e => {
             if (!e.target.classList.contains('aa-char')) aaTooltip.style.display = 'none';
@@ -2029,11 +2009,7 @@ kbd {
             }
         });
     };
-    function closeModal() {
-        demoModal.classList.remove('active');
-        demoVideo?.pause();
-        if (demoVideo) demoVideo.currentTime = 0;
-    }
+
     /* ── SEQUENCE EVENTS ──────────────────────────────────── */
     function onSeqInput() {
         updateCharCount();
@@ -2323,8 +2299,9 @@ kbd {
                 if (/Predicted MIC Values/i.test(line))           { section = 'mic'; continue; }
                 if (/Top Features Influencing Prediction/i.test(line)) { section = 'lime'; continue; }
                 if (section === 'mic') {
-                    const m = line.match(/-\s*([^:]+?):\s*(.+)/i);
-                    if (m) micData[m[1].trim()] = isNaN(parseFloat(m[2])) ? m[2].trim() : parseFloat(m[2]);
+                    // Only parse MIC lines: organism names never contain numbers alone after the colon
+                    const m = line.match(/^-\s*([^:]+?):\s*([\d.]+)\s*(?:µM|uM|μM)?$/i);
+                    if (m) micData[m[1].trim()] = parseFloat(m[2]);
                 } else if (section === 'lime') {
                     const m = line.match(/-\s*(.+?)\s*:\s*([+-]?[\d.]+)/i);
                     if (m) limeFeatures.push({ feature: m[1].trim(), value: parseFloat(m[2]) });
@@ -2380,6 +2357,11 @@ kbd {
             if (ra) ra.scrollIntoView({ behavior: 'smooth', block: 'start' });
             showToast('Classification: ' + ampLabel + ' (' + (ampConf*100).toFixed(1) + '% confidence)', isAMP ? 'success' : 'info', 4000);
             if (isAMP) micCheckboxes.forEach(cb => cb.disabled = false);
+            else {
+                // Re-enable for re-use only if sequence is still valid (non-AMP can still be re-analysed)
+                const vCheck = validateSequence(seq);
+                if (vCheck.isValid) micCheckboxes.forEach(cb => cb.disabled = false);
+            }
             let pdfDoc = null;
             try { pdfDoc = await buildPDF(seq, ampLabel, ampConf, micData, limeFeatures); }
             catch (pdfErr) { console.error("PDF gen error:", pdfErr); }
